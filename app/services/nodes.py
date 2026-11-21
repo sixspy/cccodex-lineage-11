@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.db import get_db
+from app.services import paths as paths_svc
 from app.services.errors import ServiceError
 
 
@@ -17,6 +18,7 @@ def list_nodes(layer: str | None = None, db_path: str | None = None) -> list[dic
                 "SELECT * FROM lineage_nodes ORDER BY id"
             ).fetchall()
         items = [dict(r) for r in rows]
+        marks = paths_svc.node_marks(db_path)
         for it in items:
             up = conn.execute(
                 "SELECT COUNT(*) AS c FROM lineage_edges "
@@ -30,6 +32,10 @@ def list_nodes(layer: str | None = None, db_path: str | None = None) -> list[dic
             ).fetchone()["c"]
             it["upstream_count"] = int(up)
             it["downstream_count"] = int(down)
+            node_marks = marks.get(int(it["id"]), [])
+            it["path_marks"] = node_marks
+            it["is_critical"] = bool(node_marks)
+            it["path_lengths"] = sorted({m["path_length"] for m in node_marks})
         return items
 
 

@@ -48,3 +48,15 @@ input, select {
 }
 h2,h3 { margin: 0 0 .5rem; }
 pre { white-space: pre-wrap; font-size: .8rem; }
+
+.split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.pane { min-width: 0; }
+.pane .wall { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.card-critical { border-color: var(--accent); }
+.tag-star { background: #3a2e0f; border-color: var(--accent); color: #ffe9a8; }
+.tag-warn { background: #3a1414; border-color: var(--danger); color: #ffc9c9; }
+.grid { width: 100%; border-collapse: collapse; font-size: .8rem; margin: .35rem 0; }
+.grid th, .grid td { border-bottom: 1px solid var(--line); padding: .2rem .35rem; text-align: left; }
+.grid th { color: var(--muted); font-weight: 500; }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+.card-warn { border-color: var(--danger); }

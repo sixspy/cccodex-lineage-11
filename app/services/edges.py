@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.db import get_db
+from app.services import paths as paths_svc
 from app.services.errors import ServiceError
 
 
@@ -15,7 +16,13 @@ def list_edges(db_path: str | None = None) -> list[dict]:
             "JOIN lineage_nodes d ON d.id=e.downstream_id "
             "ORDER BY e.id"
         ).fetchall()
-        return [dict(r) for r in rows]
+        chips = paths_svc.edge_chips(db_path)
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["path_chips"] = chips.get(int(item["id"]), [])
+            items.append(item)
+        return items
 
 
 def create_edge(
@@ -70,8 +77,10 @@ def publish_edge(edge_id: int, db_path: str | None = None) -> dict:
         ).fetchone()
         if not edge:
             raise ServiceError("边不存在", 404)
-        if edge["status"] != "草稿":
-            raise ServiceError("仅草稿可发布", 409)
+        if edge["status"] == "已发布":
+            raise ServiceError("边已发布，无须重复发布", 409)
+        if edge["status"] not in ("草稿", "已作废"):
+            raise ServiceError("仅草稿或已作废边可发布", 409)
         for nid in (edge["upstream_id"], edge["downstream_id"]):
             node = conn.execute(
                 "SELECT status FROM lineage_nodes WHERE id=?", (nid,)

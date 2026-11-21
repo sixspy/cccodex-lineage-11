@@ -11,6 +11,7 @@ from app.services import edges as edges_svc
 from app.services import impact as impact_svc
 from app.services import nodes as nodes_svc
 from app.services import notify as notify_svc
+from app.services import paths as paths_svc
 from app.services import settings as settings_svc
 from app.services.errors import ServiceError
 
@@ -36,6 +37,15 @@ def _read_json() -> dict:
     except json.JSONDecodeError as exc:
         raise ServiceError("JSON 无效") from exc
     return data if isinstance(data, dict) else {}
+
+
+def _query_text(name: str) -> str:
+    """查询串在 WSGI 里按 latin-1 解出，这里还原成 UTF-8 文本。"""
+    raw = request.query.get(name) or ""
+    try:
+        return raw.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return raw
 
 
 def _current_user() -> str | None:
@@ -217,6 +227,62 @@ def create_app() -> Bottle:
         _require_user()
         body = _read_json()
         return _json({"job": impact_svc.start_impact(int(body.get("root_node_id") or 0))})
+
+    @app.get("/api/paths")
+    @wrap
+    def api_paths_list():
+        _require_user()
+        landing = request.query.get("landing") or None
+        return _json(paths_svc.list_packages(landing))
+
+    @app.get("/api/paths/orchestrations")
+    @wrap
+    def api_paths_orchestrations():
+        _require_user()
+        return _json({"items": paths_svc.list_orchestrations()})
+
+    @app.get("/api/paths/detail")
+    @wrap
+    def api_paths_detail():
+        _require_user()
+        path_key = _query_text("path_key")
+        if not path_key:
+            raise ServiceError("缺少路径键 path_key")
+        landing = request.query.get("landing") or None
+        return _json({"item": paths_svc.get_package(path_key, landing)})
+
+    @app.post("/api/paths/star")
+    @wrap
+    def api_paths_star():
+        user = _require_user()
+        body = _read_json()
+        try:
+            root_id = int(body.get("root_node_id") or 0)
+            sink_id = int(body.get("sink_node_id") or 0)
+        except (TypeError, ValueError) as exc:
+            raise ServiceError("起止节点编号无效") from exc
+        pkg = paths_svc.star_path(
+            root_id,
+            sink_id,
+            str(body.get("landing") or ""),
+            user,
+            str(body.get("note") or ""),
+        )
+        return _json({"item": pkg})
+
+    @app.post("/api/paths/orchestrate")
+    @wrap
+    def api_paths_orchestrate():
+        user = _require_user()
+        body = _read_json()
+        path_key = str(body.get("path_key") or "").strip()
+        if not path_key:
+            raise ServiceError("缺少路径键 path_key")
+        result = paths_svc.orchestrate(path_key, user)
+        if result["status"] != "已编排":
+            result["error"] = result["message"]
+            return _json(result, 409)
+        return _json(result)
 
     @app.get("/api/notify")
     @wrap
